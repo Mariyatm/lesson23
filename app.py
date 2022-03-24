@@ -2,6 +2,9 @@ import os
 
 from flask import Flask, request
 from flask_restx import Resource, Namespace, Api
+from typing import Iterator, Union, Any
+
+import re
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -10,34 +13,42 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 query_ns = Namespace('perform_query')
 
 
-def query_filter(data, value):
+def query_filter(data: Union[Iterator[Any], str], value: str) -> Iterator[Any]:
     return filter(lambda row: value in row, data)
 
 
-def query_map(data, value):
+def query_map(data: Union[Iterator[Any], str], value: str) -> Iterator[Any]:
     return map(lambda row: row.split()[int(value)], data)
 
 
-def query_unique(data, value):
+def query_unique(data: Union[Iterator[Any], str], value: str) -> Iterator[Any]:
     return (row  for row in set(data))
 
 
-def query_sort(data, value):
+def query_sort(data: Union[Iterator[Any], str], value: str) -> Iterator[Any]:
     reverse = False
     if value == "desc":
         reverse = True
     return iter(sorted(data, reverse=reverse))
 
 
-def run_query(data, value, cmd):
+def query_regex(data: Union[Iterator[Any], str], value: str) -> Iterator[Any]:
+    return (row for row in data if re.search(value, row) is not None)
+
+
+def run_query(data: Union[Iterator[Any], str], value: str, cmd: str) -> Union[Iterator[Any], str]:
     if cmd == "filter":
         return query_filter(data,value)
-    if cmd == "map":
+    elif cmd == "map":
         return query_map(data, value)
-    if cmd == "sort":
+    elif cmd == "sort":
         return query_sort(data, value)
-    if cmd == "unique":
+    elif cmd == "unique":
         return query_unique(data, value)
+    elif cmd == "regex":
+        return query_regex(data,value)
+    else:
+        return "the command is unknown"
 
 
 @query_ns.route('/')
@@ -45,11 +56,14 @@ class PerformQuery(Resource):
     def post(self):
         try:
             req_json = request.json
-            file_name = req_json.get('file_name')
-            cmd1 = req_json.get('cmd1')
-            value1 = req_json.get('value1')
-            cmd2 = req_json.get('cmd2')
-            value2 = req_json.get('value2')
+            if req_json is not None:
+                file_name = req_json.get('file_name')
+                cmd1 = req_json.get('cmd1')
+                value1 = req_json.get('value1')
+                cmd2 = req_json.get('cmd2')
+                value2 = req_json.get('value2')
+            else:
+                raise Exception
         except Exception as e:
             return "404"
 
